@@ -89,8 +89,8 @@ class Chef
 
             ui.warn("Deleted server #{@server.id}")
 
-            if config[:purge]
-              thing_to_delete = config[:chef_node_name] || instance_id
+            if locate_config_value(:purge)
+              thing_to_delete = locate_config_value(:chef_node_name) || instance_id
               destroy_item(Chef::Node, thing_to_delete, "node")
               destroy_item(Chef::ApiClient, thing_to_delete, "client")
             else

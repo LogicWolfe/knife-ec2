@@ -299,9 +299,9 @@ class Chef
           msg_pair("Root Device Name", device_map['deviceName'])
           msg_pair("Root Device Delete on Terminate", device_map['deleteOnTermination'])
 
-          if config[:ebs_size]
-            if ami.block_device_mapping.first['volumeSize'].to_i < config[:ebs_size].to_i
-              volume_too_large_warning = "#{config[:ebs_size]}GB " +
+          if locate_config_value(:ebs_size)
+            if ami.block_device_mapping.first['volumeSize'].to_i < locate_config_value(:ebs_size).to_i
+              volume_too_large_warning = "#{locate_config_value(:ebs_size)}GB " +
                           "EBS volume size is larger than size set in AMI of " +
                           "#{ami.block_device_mapping.first['volumeSize']}GB.\n" +
                           "Use file system tools to make use of the increased volume size."
@@ -309,7 +309,7 @@ class Chef
             end
           end
         end
-        if config[:ebs_optimized]
+        if locate_config_value(:ebs_optimized)
           msg_pair("EBS is Optimized", @server.ebs_optimized.to_s)
         end
         if vpc_mode?
@@ -320,29 +320,29 @@ class Chef
           msg_pair("Private DNS Name", @server.private_dns_name)
         end
         msg_pair("Private IP Address", @server.private_ip_address)
-        msg_pair("Environment", config[:environment] || '_default')
-        msg_pair("Run List", (config[:run_list] || []).join(', '))
-        msg_pair("JSON Attributes",config[:json_attributes]) unless !config[:json_attributes] || config[:json_attributes].empty?
+        msg_pair("Environment", locate_config_value(:environment) || '_default')
+        msg_pair("Run List", (locate_config_value(:run_list) || []).join(', '))
+        msg_pair("JSON Attributes",locate_config_value(:json_attributes)) unless !locate_config_value(:json_attributes) || locate_config_value(:json_attributes).empty?
       end
 
       def bootstrap_for_node(server,ssh_host)
         bootstrap = Chef::Knife::Bootstrap.new
         bootstrap.name_args = [ssh_host]
         bootstrap.config[:run_list] = locate_config_value(:run_list) || []
-        bootstrap.config[:ssh_user] = config[:ssh_user]
-        bootstrap.config[:ssh_port] = config[:ssh_port]
-        bootstrap.config[:ssh_gateway] = config[:ssh_gateway]
-        bootstrap.config[:identity_file] = config[:identity_file]
+        bootstrap.config[:ssh_user] = locate_config_value(:ssh_user)
+        bootstrap.config[:ssh_port] = locate_config_value(:ssh_port)
+        bootstrap.config[:ssh_gateway] = locate_config_value(:ssh_gateway)
+        bootstrap.config[:identity_file] = locate_config_value(:identity_file)
         bootstrap.config[:chef_node_name] = locate_config_value(:chef_node_name) || server.id
-        bootstrap.config[:prerelease] = config[:prerelease]
+        bootstrap.config[:prerelease] = locate_config_value(:prerelease)
         bootstrap.config[:bootstrap_version] = locate_config_value(:bootstrap_version)
         bootstrap.config[:first_boot_attributes] = locate_config_value(:json_attributes) || {}
         bootstrap.config[:distro] = locate_config_value(:distro) || "chef-full"
-        bootstrap.config[:use_sudo] = true unless config[:ssh_user] == 'root'
+        bootstrap.config[:use_sudo] = true unless locate_config_value(:ssh_user) == 'root'
         bootstrap.config[:template_file] = locate_config_value(:template_file)
-        bootstrap.config[:environment] = config[:environment]
+        bootstrap.config[:environment] = locate_config_value(:environment)
         # may be needed for vpc_mode
-        bootstrap.config[:host_key_verify] = config[:host_key_verify]
+        bootstrap.config[:host_key_verify] = locate_config_value(:host_key_verify)
         # Modify global configuration state to ensure hint gets set by
         # knife-bootstrap
         Chef::Config[:knife][:hints] ||= {}
@@ -369,7 +369,7 @@ class Chef
           exit 1
         end
 
-        if vpc_mode? and !!config[:security_groups]
+        if vpc_mode? and !!locate_config_value(:security_groups)
           ui.error("You are using a VPC, security groups specified with '-G' are not allowed, specify one or more security group ids with '-g' instead.")
           exit 1
         end
@@ -388,7 +388,7 @@ class Chef
       def create_server_def
         server_def = {
           :image_id => locate_config_value(:image),
-          :groups => config[:security_groups],
+          :groups => locate_config_value(:security_groups),
           :security_group_ids => locate_config_value(:security_group_ids),
           :flavor_id => locate_config_value(:flavor),
           :key_name => Chef::Config[:knife][:aws_ssh_key_id],
@@ -404,7 +404,7 @@ class Chef
           end
         end
 
-        if config[:ebs_optimized]
+        if locate_config_value(:ebs_optimized)
           server_def[:ebs_optimized] = "true"
         else
           server_def[:ebs_optimized] = "false"
@@ -413,8 +413,8 @@ class Chef
         if ami.root_device_type == "ebs"
           ami_map = ami.block_device_mapping.first
           ebs_size = begin
-                       if config[:ebs_size]
-                         Integer(config[:ebs_size]).to_s
+                       if locate_config_value(:ebs_size)
+                         Integer(locate_config_value(:ebs_size)).to_s
                        else
                          ami_map["volumeSize"].to_s
                        end
@@ -423,7 +423,7 @@ class Chef
                        msg opt_parser
                        exit 1
                      end
-          delete_term = if config[:ebs_no_delete_on_term]
+          delete_term = if locate_config_value(:ebs_no_delete_on_term)
                           "false"
                         else
                           ami_map["deleteOnTermination"]
@@ -437,7 +437,7 @@ class Chef
              }]
         end
 
-        (config[:ephemeral] || []).each_with_index do |device_name, i|
+        (locate_config_value(:ephemeral) || []).each_with_index do |device_name, i|
           server_def[:block_device_mapping] = (server_def[:block_device_mapping] || []) << {'VirtualName' => "ephemeral#{i}", 'DeviceName' => device_name}
         end
 
@@ -445,7 +445,7 @@ class Chef
       end
 
       def wait_for_sshd(hostname)
-        config[:ssh_gateway] ? wait_for_tunnelled_sshd(hostname) : wait_for_direct_sshd(hostname, config[:ssh_port])
+        locate_config_value(:ssh_gateway) ? wait_for_tunnelled_sshd(hostname) : wait_for_direct_sshd(hostname, locate_config_value(:ssh_port))
       end
 
       def wait_for_tunnelled_sshd(hostname)
@@ -457,11 +457,11 @@ class Chef
       end
 
       def tunnel_test_ssh(hostname, &block)
-        gw_host, gw_user = config[:ssh_gateway].split('@').reverse
+        gw_host, gw_user = locate_config_value(:ssh_gateway).split('@').reverse
         gw_host, gw_port = gw_host.split(':')
         gateway = Net::SSH::Gateway.new(gw_host, gw_user, :port => gw_port || 22)
         status = false
-        gateway.open(hostname, config[:ssh_port]) do |local_tunnel_port|
+        gateway.open(hostname, locate_config_value(:ssh_port)) do |local_tunnel_port|
           status = tcp_test_ssh('localhost', local_tunnel_port, &block)
         end
         status
@@ -480,8 +480,8 @@ class Chef
       end
 
       def ssh_connect_host
-        @ssh_connect_host ||= if config[:server_connect_attribute]
-          server.send(config[:server_connect_attribute])
+        @ssh_connect_host ||= if locate_config_value(:server_connect_attribute)
+          server.send(locate_config_value(:server_connect_attribute))
         else
           vpc_mode? ? server.private_ip_address : server.dns_name
         end

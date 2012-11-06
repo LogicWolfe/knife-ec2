@@ -21,7 +21,7 @@ require 'chef/knife'
 class Chef
   class Knife
     class Ec2InstanceData < Knife
-      
+
       deps do
         require 'chef/json_compat'
       end
@@ -45,9 +45,9 @@ class Chef
           "chef_server" => Chef::Config[:chef_server_url],
           "validation_client_name" => Chef::Config[:validation_client_name],
           "validation_key" => IO.read(Chef::Config[:validation_key]),
-          "attributes" => { "run_list" => config[:run_list] }
+          "attributes" => { "run_list" => locate_config_value(:run_list) }
         }
-        data = edit_data(data) if config[:edit]
+        data = edit_data(data) if locate_config_value(:edit)
         ui.output(data)
       end
     end
